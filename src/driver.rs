@@ -68,6 +68,7 @@ impl AtsDriver {
 
     /// When software load a handler task in the hardware, It will fill the `handler` and `irq` registers.
     /// Then it will set the `lhandler` bit in the `control` register.
+    #[cfg(not(feature = "task-as-usize"))]
     pub fn load_handler(&self, irq: usize, handler: TaskRef) {
         #[cfg(any(feature = "locked-simul", feature = "lock-free-simul"))]
         {
@@ -82,7 +83,13 @@ impl AtsDriver {
         }
     }
 
+    #[cfg(feature = "task-as-usize")]
+    pub fn load_handler(&self, irq: usize, handler: usize) {
+        self.regs().intc().enqueueregs(irq).write(|w| unsafe { w.bits(handler as u64) });
+    }
+
     /// Software store a task into the hardware executor.
+    #[cfg(not(feature = "task-as-usize"))]
     pub fn stask(&self, task: TaskRef, process_id: usize, priority: usize) {
         #[cfg(any(feature = "locked-simul", feature = "lock-free-simul"))]
         {
@@ -97,7 +104,13 @@ impl AtsDriver {
         }
     }
 
+    #[cfg(feature = "task-as-usize")]
+    pub fn stask(&self, task: usize, process_id: usize, priority: usize) {
+        self.regs().processes(process_id).ats().enqueueregs(priority).write(|w| unsafe { w.bits(task as u64) });
+    }
+
     /// Software fetch a task from the hardware executor.
+    #[cfg(not(feature = "task-as-usize"))]
     pub fn ftask(&self, process_id: usize) -> Option<TaskRef> {
         #[cfg(any(feature = "locked-simul", feature = "lock-free-simul"))]
         {
@@ -116,6 +129,16 @@ impl AtsDriver {
             } else {
                 Some(unsafe { TaskRef::from_ptr(raw_ptr as *const Task) })
             }
+        }
+    }
+
+    #[cfg(feature = "task-as-usize")]
+    pub fn ftask(&self, process_id: usize) -> Option<usize> {
+        let raw_ptr = self.regs().processes(process_id).ats().dequeue().read().bits() as usize;
+        if raw_ptr == 0 {
+            None
+        } else {
+            Some(raw_ptr)
         }
     }
 }

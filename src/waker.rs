@@ -18,9 +18,16 @@ struct WakerData {
 }
 
 impl WakerData {
+    #[cfg(not(feature = "task-as-usize"))]
     fn wake(&self) {
         let priority = unsafe { (*self.task_ref.as_ptr()).priority.load(Ordering::Acquire) };
         self.hw.stask(self.task_ref, self.process_id, priority as usize);
+    }
+
+    #[cfg(feature = "task-as-usize")]
+    fn wake(&self) {
+        let priority = unsafe { (*self.task_ref.as_ptr()).priority.load(Ordering::Acquire) };
+        self.hw.stask(self.task_ref.as_ptr() as usize, self.process_id, priority as usize);
     }
 }
 
